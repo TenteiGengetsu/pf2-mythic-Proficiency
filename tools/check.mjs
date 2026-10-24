@@ -13,6 +13,10 @@ assert.equal((await readFile(new URL("../README.md", import.meta.url))).byteLeng
 const cn = JSON.parse(await readFile(new URL("../lang/cn.json", import.meta.url), "utf8"));
 const en = JSON.parse(await readFile(new URL("../lang/en.json", import.meta.url), "utf8"));
 assert.deepEqual(Object.keys(cn.PF2E_MYTHIC).sort(), Object.keys(en.PF2E_MYTHIC).sort());
+assert.equal(cn.PF2E_MYTHIC.Rank, "\u795e\u8bdd", "Chinese rank must survive UTF-8 transport");
+for (const file of ["module.json", "lang/cn.json", "lang/en.json", "scripts/main.mjs", "scripts/core.mjs", "tests/ui.mjs", "tests/mechanics.mjs", "tools/package.py", "VALIDATION.md"]) {
+  assert.ok(!(await readFile(path.join(root, file), "utf8")).includes("\uFFFD"), `Corrupt UTF-8 text in ${file}`);
+}
 for (const key of Object.keys(cn.PF2E_MYTHIC)) {
   const variables = (value) => [...value.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
   assert.deepEqual(variables(cn.PF2E_MYTHIC[key]), variables(en.PF2E_MYTHIC[key]), key);

@@ -19,8 +19,16 @@ def release():
     if result.returncode == 0:
         return json.loads(result.stdout)
     if "HTTP 404" in result.stderr:
-        return None
+        # A draft may not have a real Git tag yet and the tag endpoint can
+        # return 404. List authenticated releases to find resumable drafts.
+        return next((item for item in json.loads(gh("api", f"repos/{repository}/releases?per_page=100")) if item["tag_name"] == tag), None)
     raise RuntimeError(result.stderr)
+
+if os.environ.get("GITHUB_REF") == "refs/heads/main":
+    head = json.loads(gh("api", f"repos/{repository}/git/ref/heads/main"))["object"]["sha"]
+    if head != commit:
+        print("A newer main revision exists; let its validated workflow publish.")
+        raise SystemExit(0)
 
 assets = [dist / name for name in ["module.json", "pf2e-mythic-proficiency.zip", "SHA256SUMS.txt"]]
 existing = release()
@@ -29,7 +37,10 @@ if existing and not existing["draft"]:
     print(f"{tag} is already published; existing assets are preserved. Increment module.json version to publish new code.")
     raise SystemExit(0)
 if existing:
-    assert existing["target_commitish"] == commit, "Draft targets another commit; refusing to overwrite it"
+    assert existing["author"]["login"] == "github-actions[bot]", "Refusing to change a maintainer-created draft"
+    # Resume only this automation's unpublished draft, including a newer fix
+    # to the same version before its first successful publication.
+    gh("release", "edit", tag, "--target", commit, "--title", meta["title"], "--notes-file", str(dist / "RELEASE_NOTES.md"))
 else:
     gh("release", "create", tag, "--target", commit, "--draft", "--title", meta["title"], "--notes-file", str(dist / "RELEASE_NOTES.md"))
 gh("release", "upload", tag, *(str(file) for file in assets), "--clobber")

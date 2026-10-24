@@ -12,12 +12,12 @@ try {
   page.on("pageerror", (e) => errors.push(e.message));
   await page.route("https://fvtt.test/**", async (route) => {
     const file = new URL(route.request().url()).pathname.slice(1);
-    if (!file) return route.fulfill({ contentType: "text/html", body: "<!doctype html><html><head><meta charset='utf-8'></head><body><div id='sheet' class='pf2e'></div></body></html>" });
+    if (!file) return route.fulfill({ contentType: "text/html", body: "<!doctype html><html><head><meta charset='utf-8'></head><body><div id='sheet' class='default sheet actor character'></div></body></html>" });
     if (files[file]) return route.fulfill({ contentType: file.endsWith("mjs") ? "text/javascript" : "text/plain", body: files[file] });
     return route.fulfill({ status: 404, body: "Not found" });
   });
   await page.goto("https://fvtt.test/");
-  await page.addStyleTag({ content: `body{font:16px system-ui;background:#171c27;color:#ded9d1;padding:35px}.pf2e{background:#efe7da;color:#2e241e;padding:24px;width:650px}h1{font-size:24px}h2{font-size:17px;margin-top:25px}li,.roll-data{display:flex;gap:20px;margin:10px 0;align-items:center}li .name{min-width:180px}.pf-rank{display:block;min-width:90px;text-align:center;padding:4px;border:1px solid #211;color:white;background:#777}.pf-rank[data-rank="1"],option[value="1"]{background:#171d65}.pf-rank[data-rank="2"],option[value="2"]{background:#3b005b}.pf-rank[data-rank="3"],option[value="3"]{background:#805700}.pf-rank[data-rank="4"],option[value="4"]{background:#7c0900}small{color:#6d6256}.readonly{pointer-events:none}${files["styles/mythic.css"]}` });
+  await page.addStyleTag({ content: `body{font:16px system-ui;background:#171c27;color:#ded9d1;padding:35px}.sheet{background:#efe7da;color:#2e241e;padding:24px;width:650px}h1{font-size:24px}h2{font-size:17px;margin-top:25px}li,.roll-data{display:flex;gap:20px;margin:10px 0;align-items:center}li .name{min-width:180px}.pf-rank{display:block;min-width:90px;text-align:center;padding:4px;border:1px solid #211;color:white;background:#777}.pf-rank[data-rank="1"],option[value="1"]{background:#171d65}.pf-rank[data-rank="2"],option[value="2"]{background:#3b005b}.pf-rank[data-rank="3"],option[value="3"]{background:#805700}.pf-rank[data-rank="4"],option[value="4"]{background:#7c0900}small{color:#6d6256}.readonly{pointer-events:none}${files["styles/mythic.css"]}` });
   await page.evaluate(({ cn, en }) => {
     window.dicts = { cn: JSON.parse(cn), en: JSON.parse(en) }; window.language = "cn";
     const handlers = new Map();
@@ -84,6 +84,21 @@ try {
   assert.equal(await control("skill:athletics").locator("option[value='5']").textContent(), "神话");
   assert.equal(await page.locator("select[data-mythic-key]").count(), 11);
   pass("native dropdowns, automatic badges, lore and spell/class bindings get controls");
+  assert.equal(await page.locator(".pf2e").count(), 0);
+  assert.equal(await control("skill:athletics").locator("option[value='5']").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(212, 175, 55)");
+  assert.equal(await control("skill:athletics").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(23, 29, 101)");
+  assert.equal(await control("skill:stealth").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(124, 9, 0)");
+  const unrelated = await page.evaluate(() => {
+    const select = document.createElement("select");
+    select.className = "pf-rank"; select.dataset.rank = "5";
+    select.add(new Option("Unrelated rank", "5")); document.body.append(select);
+    const color = getComputedStyle(select).backgroundColor;
+    const optionColor = getComputedStyle(select.options[0]).backgroundColor;
+    select.remove(); return { color, optionColor };
+  });
+  assert.notEqual(unrelated.color, "rgb(212, 175, 55)");
+  assert.notEqual(unrelated.optionColor, "rgb(212, 175, 55)");
+  pass("gold dropdown option works without .pf2e ancestor; native ranks and unrelated controls keep their colors");
   await control("skill:athletics").selectOption("5");
   await page.waitForFunction(() => !!document.querySelector('select[data-mythic-key="skill:athletics"].mythic-active'));
   assert.equal(await control("skill:athletics").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(212, 175, 55)");

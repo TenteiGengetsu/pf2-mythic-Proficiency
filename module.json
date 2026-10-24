@@ -2,7 +2,7 @@
   "id": "pf2e-mythic-proficiency",
   "title": "PF2e Mythic Proficiency | 神话熟练度",
   "description": "Adds a gold Mythic proficiency choice to PF2e character sheets. 为 PF2e 角色卡添加金色神话熟练度选项，熟练加值为等级 +10。",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "authors": [
     {
       "name": "TenteiGengetsu",

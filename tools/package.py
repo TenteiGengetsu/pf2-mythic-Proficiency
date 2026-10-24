@@ -45,11 +45,13 @@ checksums = "".join(f"{hashlib.sha256(file.read_bytes()).hexdigest()}  {file.nam
 (output / "SHA256SUMS.txt").write_text(checksums, encoding="utf-8")
 notes = f"""PF2e Mythic Proficiency {tag}
 
-- 金色神话 / Mythic 熟练度，中文语言代码 cn。
-- 标准熟练加值为等级 +10；无等级熟练为 +10。
+- 保留原熟练度；掷骰窗口提供原熟练度 / 神话互斥选择，默认原熟练度。
+- 神话仅本次检定生效，确认掷骰消耗 1 神话点；取消不扣点。
+- 标准神话熟练加值为等级 +10；无等级熟练为 +10。
+- 检查并保留豁免、职业 DC、施法等框体尺寸和位置，移除模组悬浮提示。
 - Foundry VTT 14（清单 verified 14.369），PF2e 8.6.1。
 - 自动化数值及界面夹具测试通过；游戏内验收仍需使用者执行。
-- 神话为手动开关，不自动消耗神话点。
+- 下次检定自动回到原熟练度；原生改写命运重投保持系统处理。
 
 Foundry 安装清单：{url}/releases/latest/download/module.json
 

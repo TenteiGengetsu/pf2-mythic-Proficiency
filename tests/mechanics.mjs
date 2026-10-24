@@ -1,217 +1,178 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import vm from "node:vm";
-import { fileURLToPath } from "node:url";
-import { stripTypeScriptTypes } from "node:module";
-import { ID, flagKey, mythicBonus, installAdjustments, isMythic, setMythic, targets } from "../scripts/core.mjs";
+import { clone, Modifier, CheckModifier, Statistic, createProficiencyModifier, Predicate } from "./pf2e-runtime.mjs";
+import { ID, flagKey, isMythic, setMythic, mythicBonus } from "../scripts/core.mjs";
+import { MythicCheckSession, prepareSession, eligibleKeys, MYTHIC_OPTION, MYTHIC_SLUG } from "../scripts/rolls.mjs";
 
-const sourceRoot = process.env.PF2E_SOURCE_ROOT ?? fileURLToPath(new URL("../.cache/pf2e/", import.meta.url));
-const clone = (value) => Array.isArray(value) ? Array.from(value, clone) : value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, clone(v)])) : value;
-function mergeObject(a, b) {
-  for (const [key, value] of Object.entries(b)) {
-    a[key] = value && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype
-      ? mergeObject(a[key] && typeof a[key] === "object" ? a[key] : {}, value) : value;
-  }
-  return a;
-}
-const R = {
-  unique: (xs) => [...new Set(xs)], isTruthy: Boolean,
-  isPlainObject: (x) => !!x && Object.getPrototypeOf(x) === Object.prototype,
-  isObjectType: (x) => x !== null && typeof x === "object",
-  omit: (o, keys) => Object.fromEntries(Object.entries(o).filter(([key]) => !keys.includes(key)))
+const cn = JSON.parse(await readFile(new URL("../lang/cn.json", import.meta.url), "utf8"));
+game.i18n = {
+  localize(key, data = {}) { return String(key.split(".").reduce((obj, part) => obj?.[part], cn) ?? key).replace(/\{(\w+)\}/g, (_, part) => String(data[part] ?? part)); },
+  has(key) { return !!key.split(".").reduce((obj, part) => obj?.[part], cn); }
 };
-globalThis.game = { pf2e: { settings: { variants: { pwol: { enabled: false, modifiers: [0, 2, 4, 6, 8] } } } } };
-globalThis.CONFIG = { PF2E: { equivalentWeapons: { "composite-longbow": "longbow" }, damageTypes: {}, abilities: { str: "STR", int: "INT" } } };
-const context = vm.createContext({
-  R, game, CONFIG, console, Set, Object, Array, Map,
-  SYSTEM_NAME: "Pathfinder Second Edition",
-  fu: { deepClone: clone, mergeObject }, _loc: (x) => x,
-  setHasElement: (set, x) => set.has(x),
-  objectHasKey: (obj, key) => Object.hasOwn(obj, key),
-  tupleHasValue: (xs, x) => xs.includes(x),
-  sluggify: (x) => String(x).toLowerCase().replaceAll(" ", "-"),
-  signedInteger: (x) => `${x >= 0 ? "+" : ""}${x}`,
-  ErrorPF2e: (s) => new Error(s),
-  DamageCategorization: { fromDamageType: () => null },
-  extractModifierAdjustments: (record, selectors, slug) => [...new Set(selectors.flatMap((s) => record[s] ?? []))].filter((a) => a.slug === slug || a.slug === null),
-  extractModifiers: (synthetics, selectors) => [...new Set(selectors)].flatMap((s) => synthetics.modifiers[s] ?? []).flatMap((f) => f({}) ?? [])
-});
-vm.runInContext("Math.clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));", context);
-for (const file of ["src/module/system/predication.ts", "src/module/actor/modifiers.ts", "src/module/system/statistic/base.ts", "src/module/system/statistic/statistic.ts"]) {
-  const raw = await readFile(`${sourceRoot}/${file}`, "utf8");
-  const stripped = stripTypeScriptTypes(raw, { mode: "strip" })
-    .replace(/^import[\s\S]*?from\s+["'][^"']+["'];\s*/gm, "")
-    .replace(/export\s*\{[\s\S]*?\};/g, "");
-  vm.runInContext(stripped, context, { filename: file });
-}
-vm.runInContext("globalThis.official = { Modifier, StatisticModifier, CheckModifier, Statistic, createProficiencyModifier, Predicate };", context);
-const { Modifier, StatisticModifier, CheckModifier, Statistic, createProficiencyModifier, Predicate } = context.official;
-let count = 0;
-function check(name, fn) { fn(); count++; console.log(`PASS ${name}`); }
-const enabled = (actor, key, value = true) => { actor.flags[ID].ranks[flagKey(key)] = value; };
-function actorFixture() {
-  const items = new Map();
-  return {
-    type: "character", level: 10, isOwner: true,
+Object.assign(game.pf2e, { Modifier, CheckModifier });
+globalThis.ui = { notifications: { warn() {} } };
+let sequence = 0;
+function fixture() {
+  const actor = {
+    type: "character", level: 10, uuid: `Actor.test${sequence++}`, isOwner: true,
     isOfType: (...types) => types.includes("character") || types.includes("creature"),
-    getRollOptions: () => ["self:type:character"],
-    abilities: { str: { mod: 4 }, int: { mod: 3 } },
-    flags: { [ID]: { ranks: {} } }, items, itemTypes: { lore: [] },
-    system: { skills: { athletics: { rank: 1 }, stealth: { rank: 4 } }, proficiencies: {
-      attacks: { simple: { rank: 1 }, martial: { rank: 2 }, "weapon-group-sword": { rank: 2 }, custom: { rank: 1, definition: new Predicate("item:trait:agile") } },
-      defenses: { unarmored: { rank: 1 }, heavy: { rank: 1 }, light: { rank: 1 } },
-      classDCs: { fighter: { rank: 2 } }, spellcasting: { rank: 1 }
+    getRollOptions: () => ["self:type:character"], abilities: { str: { mod: 4 }, int: { mod: 3 } },
+    flags: { [ID]: { ranks: {} } }, items: new Map(), itemTypes: { lore: [] }, resourceUpdates: [],
+    system: { resources: { mythicPoints: { value: 3, max: 3 } }, skills: { athletics: { rank: 1 }, stealth: { rank: 4 } }, proficiencies: {
+      attacks: { simple: { rank: 1 }, martial: { rank: 2 }, "weapon-group-sword": { rank: 2 }, "weapon-base-composite-longbow": { rank: 2 }, custom: { rank: 1, definition: new Predicate("item:trait:agile") } },
+      defenses: { heavy: { rank: 1 } }, classDCs: { fighter: { rank: 2 } }, spellcasting: { rank: 1 }
     } },
     synthetics: { modifierAdjustments: { all: [], damage: [] }, modifiers: { all: [] } },
-    update: async function (changes) { this.lastUpdate = changes; return changes; }
+    getResource() { return { ...this.system.resources.mythicPoints, slug: "mythic-points" }; },
+    async updateResource(slug, value) { assert.equal(slug, "mythic-points"); this.resourceUpdates.push(value); this.system.resources.mythicPoints.value = Math.min(this.system.resources.mythicPoints.max, Math.max(0, value)); },
+    async update(changes) { this.lastUpdate = changes; return this; }
   };
+  return actor;
 }
-function proficiency(actor, rank, domains, options = []) {
-  const modifier = createProficiencyModifier({ actor, rank, domains });
-  const statistic = new StatisticModifier("test", [modifier], new Set(["self:type:character", ...options]));
-  return { modifier: statistic.modifiers[0], total: statistic.totalModifier, statistic };
+function enable(actor, key) { actor.flags[ID].ranks[flagKey(key)] = true; }
+function input(actor, rank = 1, domains = ["athletics", "all"], type = "skill-check", extras = []) {
+  const context = { actor, domains, type, options: new Set(["self:type:character"]) };
+  const prof = createProficiencyModifier({ actor, rank, domains });
+  return { context, check: new CheckModifier("test", { modifiers: [prof, ...extras] }, [], context.options) };
 }
-check("all native ranks retain official PF2e values without selection", () => {
-  const actor = actorFixture(); installAdjustments(actor);
-  assert.deepEqual([0, 1, 2, 3, 4].map((rank) => proficiency(actor, rank, ["athletics"]).total), [0, 12, 14, 16, 18]);
-});
-check("all five base ranks become level +10; unrelated skill remains unchanged", () => {
-  const actor = actorFixture(); enabled(actor, "skill:athletics"); installAdjustments(actor);
-  assert.deepEqual([0, 1, 2, 3, 4].map((rank) => proficiency(actor, rank, ["athletics", "all"]).total), [20, 20, 20, 20, 20]);
-  assert.equal(proficiency(actor, 4, ["stealth", "all"]).total, 18);
-  assert.equal(actor.system.skills.athletics.rank, 1);
-});
-check("mythic replaces proficiency and preserves native stacking, repeated calculations, and clone", () => {
-  const actor = actorFixture(); enabled(actor, "skill:athletics"); installAdjustments(actor);
-  const modifiers = [createProficiencyModifier({ actor, rank: 1, domains: ["athletics", "all"] }),
-    new Modifier({ slug: "str", type: "ability", ability: "str", label: "STR", modifier: 4 }),
-    new Modifier({ slug: "item1", type: "item", label: "Item 1", modifier: 1 }),
-    new Modifier({ slug: "item2", type: "item", label: "Item 2", modifier: 2 }),
-    new Modifier({ slug: "frightened", type: "status", label: "Frightened", modifier: -1 })];
-  const rollOptions = new Set(["self:type:character"]);
-  const statistic = new StatisticModifier("athletics", modifiers, rollOptions);
-  assert.equal(statistic.totalModifier, 25);
-  statistic.calculateTotal(rollOptions); statistic.calculateTotal(rollOptions); assert.equal(statistic.totalModifier, 25);
-  assert.equal(new CheckModifier("cloned", statistic, [], rollOptions).totalModifier, 25);
-  assert.equal(statistic.modifiers.find((m) => m.slug === "proficiency").type, "proficiency");
-  assert.equal(statistic.modifiers.find((m) => m.slug === "proficiency").label, "PF2E_MYTHIC.Rank");
-});
-check("matching weapon category only; no spell attack or weapon damage leak", () => {
-  const actor = actorFixture(); enabled(actor, "attacks:martial"); installAdjustments(actor);
-  assert.equal(proficiency(actor, 2, ["strike-attack-roll", "all"], ["item:category:martial"]).total, 20);
-  assert.equal(proficiency(actor, 1, ["strike-attack-roll", "all"], ["item:category:simple"]).total, 12);
-  assert.equal(proficiency(actor, 2, ["spell-attack-roll", "all"], ["item:category:martial"]).total, 14);
-  assert.equal(proficiency(actor, 2, ["strike-damage", "all"], ["item:category:martial"]).total, 14);
-});
-check("weapon group, equivalent base and official Predicate definitions match", () => {
-  const actor = actorFixture(); enabled(actor, "attacks:weapon-group-sword"); enabled(actor, "attacks:weapon-base-composite-longbow"); enabled(actor, "attacks:custom"); installAdjustments(actor);
-  for (const option of ["item:group:sword", "item:base:longbow", "item:base:composite-longbow", "item:trait:agile"]) {
-    assert.equal(proficiency(actor, 2, ["strike-attack-roll"], [option]).total, 20);
-  }
-  assert.equal(proficiency(actor, 2, ["strike-attack-roll"], ["item:group:axe"]).total, 14);
-});
-check("armor switches and unarmored matching stay isolated", () => {
-  const actor = actorFixture(); enabled(actor, "defenses:heavy"); installAdjustments(actor);
-  actor.wornArmor = { category: "heavy" }; assert.equal(proficiency(actor, 1, ["ac"]).total, 20);
-  actor.wornArmor = { category: "light" }; assert.equal(proficiency(actor, 1, ["ac"]).total, 12);
-  actor.wornArmor = null; assert.equal(proficiency(actor, 1, ["ac"]).total, 12);
-  enabled(actor, "defenses:unarmored"); installAdjustments(actor); assert.equal(proficiency(actor, 1, ["ac"]).total, 20);
-});
-check("perception, save, class DC and base spellcasting selectors", () => {
-  const actor = actorFixture();
-  for (const key of ["perception", "save:will", "class:fighter", "spellcasting"]) enabled(actor, key);
-  installAdjustments(actor);
-  for (const domain of ["perception", "will", "fighter", "spell-attack-dc"]) assert.equal(proficiency(actor, 1, [domain, "all"]).total, 20);
-  assert.equal(proficiency(actor, 1, ["reflex", "all"]).total, 12);
-});
-check("base spellcasting captures adjustment before preparation and cloned checks keep it", () => {
-  const actor = actorFixture(); enabled(actor, "spellcasting"); installAdjustments(actor);
-  const original = createProficiencyModifier({ actor, rank: 1, domains: ["all", "spell-attack-dc"] });
-  const base = new StatisticModifier("base-spellcasting", [original], new Set(["self:type:character"]));
-  const extended = new CheckModifier("arcane", base, [], new Set(["self:type:character"]));
-  assert.equal(extended.totalModifier, 20); assert.equal(10 + extended.totalModifier, 30);
-});
-check("official Statistic yields skill check +24 and skill DC 34 without changing rank", () => {
-  const actor = actorFixture(); enabled(actor, "skill:athletics"); installAdjustments(actor);
-  const stat = new Statistic(actor, { slug: "athletics", label: "Athletics", rank: 1, attribute: "str", domains: ["athletics", "all"], check: { type: "skill-check" } });
-  assert.equal(stat.check.mod, 24); assert.equal(stat.dc.value, 34); assert.equal(stat.rank, 1);
-});
-check("official base spellcasting extend preserves mythic in actual spell attack and DC", () => {
-  const actor = actorFixture(); enabled(actor, "spellcasting"); installAdjustments(actor);
-  const base = new Statistic(actor, { slug: "base-spellcasting", label: "Spellcasting", rank: 1, domains: ["all", "spell-attack-dc"], check: { type: "attack-roll" } });
-  const extended = base.extend({ slug: "arcane", attribute: "int", rank: 1, domains: ["all", "int-based", "spell-attack-dc"], check: { type: "attack-roll", domains: ["spell-attack-roll"] }, dc: { domains: ["spell-dc"] } });
-  assert.equal(extended.check.mod, 23); assert.equal(extended.dc.value, 33);
-});
-check("official class-based spellcasting extends selected class, independent of base spell flag", () => {
-  const actor = actorFixture(); enabled(actor, "class:fighter"); installAdjustments(actor);
-  const base = new Statistic(actor, { slug: "fighter", label: "Class DC", rank: 2, attribute: "str", domains: ["all", "class", "fighter"] });
-  assert.equal(base.dc.value, 34);
-  const spell = base.extend({ slug: "class-spells", domains: ["spell-attack-dc"], check: { type: "attack-roll", domains: ["spell-attack-roll"] }, dc: { domains: ["spell-dc"] } });
-  assert.equal(spell.check.mod, 24); assert.equal(spell.dc.value, 34);
-});
-check("lore renaming retains Item-id selection and deleted lore cannot leak", () => {
-  const actor = actorFixture(); const item = { id: "lore1", type: "lore", slug: "sailing-lore" };
-  actor.items.set(item.id, item); actor.itemTypes.lore.push(item); enabled(actor, "lore:lore1"); installAdjustments(actor);
-  assert.equal(proficiency(actor, 1, ["sailing-lore"]).total, 20);
-  item.slug = "naval-lore"; installAdjustments(actor);
-  assert.equal(proficiency(actor, 1, ["naval-lore"]).total, 20);
-  assert.equal(proficiency(actor, 1, ["sailing-lore"]).total, 12);
-  actor.items.clear(); installAdjustments(actor); assert.equal(proficiency(actor, 1, ["naval-lore"]).total, 12);
-});
-check("preparation is idempotent and flag removal restores native value", () => {
-  const actor = actorFixture(); enabled(actor, "skill:athletics"); installAdjustments(actor); installAdjustments(actor);
-  assert.equal(actor.synthetics.modifierAdjustments.athletics.length, 1);
-  enabled(actor, "skill:athletics", false); installAdjustments(actor);
-  assert.equal(proficiency(actor, 1, ["athletics"]).total, 12);
-});
-check("disabling the module preserves every original rank, including later system progression", () => {
+const tests = [];
+const test = (name, fn) => tests.push([name, fn]);
+
+test("availability flags never change native proficiency values or passive DCs", () => {
+  const actor = fixture(); enable(actor, "skill:athletics");
   for (const rank of [0, 1, 2, 3, 4]) {
-    const actor = actorFixture(); actor.system.skills.athletics.rank = rank;
-    enabled(actor, "skill:athletics"); installAdjustments(actor);
-    assert.equal(proficiency(actor, rank, ["athletics"]).total, 20);
-    assert.equal(actor.system.skills.athletics.rank, rank);
-    // A world reload with the module disabled rebuilds core synthetics and
-    // leaves the saved flag inert. No module adjustment is installed.
-    const reloaded = actorFixture(); reloaded.flags = clone(actor.flags);
-    reloaded.system.skills.athletics.rank = actor.system.skills.athletics.rank;
-    assert.equal(isMythic(reloaded, "skill:athletics"), true);
-    assert.equal(proficiency(reloaded, rank, ["athletics"]).total, rank === 0 ? 0 : 10 + rank * 2);
-    const progressed = Math.min(4, rank + 1);
-    reloaded.system.skills.athletics.rank = progressed;
-    assert.equal(proficiency(reloaded, progressed, ["athletics"]).total, 10 + progressed * 2);
+    const { check } = input(actor, rank);
+    assert.equal(check.totalModifier, rank ? 10 + rank * 2 : 0);
+  }
+  const stat = new Statistic(actor, { slug: "athletics", label: "Athletics", rank: 1, attribute: "str", domains: ["athletics", "all"], check: { type: "skill-check" } });
+  assert.equal(stat.check.mod, 16); assert.equal(stat.dc.value, 26);
+  assert.deepEqual(actor.synthetics.modifierAdjustments, { all: [], damage: [] });
+});
+test("one native and one Mythic proficiency remain visible; native is the default", () => {
+  const actor = fixture(); enable(actor, "skill:athletics"); const { check, context } = input(actor);
+  const session = prepareSession(check, context);
+  assert.equal(session.mode, "normal"); assert.equal(session.check.totalModifier, 12);
+  assert.equal(session.check.modifiers.filter((m) => m.type === "proficiency").length, 2);
+  assert.equal(session.alternative.modifier, 20); assert.equal(session.alternative.ignored, true);
+  assert.equal(session.original.enabled, true); assert.equal(check.modifiers.length, 1);
+});
+test("selection replaces proficiency and retains native item/status stacking", () => {
+  const actor = fixture(); enable(actor, "skill:athletics");
+  const extras = [new Modifier({ slug: "str", type: "ability", label: "STR", modifier: 4 }), new Modifier({ slug: "item1", type: "item", label: "Item 1", modifier: 1 }), new Modifier({ slug: "item2", type: "item", label: "Item 2", modifier: 2 }), new Modifier({ slug: "fear", type: "status", label: "Fear", modifier: -1 })];
+  const { check, context } = input(actor, 1, undefined, undefined, extras); const session = prepareSession(check, context);
+  assert.equal(session.check.totalModifier, 17); session.choose("mythic"); assert.equal(session.check.totalModifier, 25);
+  assert.equal(session.original.enabled, false); assert.equal(session.alternative.enabled, true);
+  session.choose("normal"); assert.equal(session.check.totalModifier, 17); assert.equal(check.totalModifier, 17);
+});
+test("repeated selection and calculation never stack the two proficiency bonuses", () => {
+  const actor = fixture(); enable(actor, "skill:athletics"); const { check, context } = input(actor, 4); const session = prepareSession(check, context);
+  for (let i = 0; i < 5; i++) { session.choose("mythic"); session.check.calculateTotal(context.options); assert.equal(session.check.totalModifier, 20); session.choose("normal"); assert.equal(session.check.totalModifier, 18); }
+});
+test("choosing Mythic does not charge until the roll is confirmed", async () => {
+  const actor = fixture(); enable(actor, "skill:athletics"); const { check, context } = input(actor); const session = prepareSession(check, context);
+  session.choose("mythic"); assert.deepEqual(actor.resourceUpdates, []); assert.equal(await session.accept(true), true);
+  assert.deepEqual(actor.resourceUpdates, [2]); await session.finish(true); assert.equal(actor.getResource().value, 2);
+});
+test("cancelled dialogs do not charge a Mythic Point", async () => {
+  const actor = fixture(); const { check, context } = input(actor); const session = new MythicCheckSession(actor, check, context);
+  session.choose("mythic"); assert.equal(await session.accept(false), false); await session.finish(false); assert.deepEqual(actor.resourceUpdates, []);
+});
+test("confirmed normal checks do not charge a Mythic Point", async () => {
+  const actor = fixture(); const { check, context } = input(actor); const session = new MythicCheckSession(actor, check, context);
+  assert.equal(await session.accept(true), true); await session.finish(true); assert.deepEqual(actor.resourceUpdates, []);
+});
+test("zero or disabled Mythic Point resources cannot select Mythic", () => {
+  for (const resource of [{ value: 0, max: 3 }, { value: 3, max: 0 }]) {
+    const actor = fixture(); actor.system.resources.mythicPoints = resource; const { check, context } = input(actor);
+    const session = new MythicCheckSession(actor, check, context); assert.equal(session.choose("mythic"), "normal"); assert.equal(session.check.totalModifier, 12);
   }
 });
-check("Proficiency Without Level uses fixed +10 including customized base ranks", () => {
-  game.pf2e.settings.variants.pwol = { enabled: true, modifiers: [-2, 3, 5, 7, 9] };
-  const actor = actorFixture(); enabled(actor, "skill:athletics"); installAdjustments(actor);
-  for (const rank of [0, 1, 2, 3, 4]) assert.equal(proficiency(actor, rank, ["athletics"]).total, 10);
-  assert.equal(proficiency(actor, 4, ["stealth"]).total, 9);
-  game.pf2e.settings.variants.pwol.enabled = false;
+test("resource changes between selection and confirmation cancel without rolling", async () => {
+  const actor = fixture(); const { check, context } = input(actor); const session = new MythicCheckSession(actor, check, context);
+  session.choose("mythic"); actor.system.resources.mythicPoints.value = 0;
+  const originalError = console.error; console.error = () => {};
+  try { assert.equal(await session.accept(true), false); } finally { console.error = originalError; }
+  assert.deepEqual(actor.resourceUpdates, []);
 });
-check("level-zero characters and safe Unicode flag keys", () => {
-  const actor = actorFixture(); actor.level = 0; assert.equal(mythicBonus(actor), 10);
-  const key = "skill:自定义.学识"; enabled(actor, key); installAdjustments(actor);
-  assert.ok(/^[0-9a-f]+$/.test(flagKey(key)));
-  assert.equal(proficiency(actor, 1, ["自定义.学识"]).total, 10);
+test("rapid duplicate submissions spend exactly one point", async () => {
+  const actor = fixture(); const { check, context } = input(actor); const session = new MythicCheckSession(actor, check, context); session.choose("mythic");
+  assert.deepEqual(await Promise.all([session.accept(true), session.accept(true), session.accept(true)]), [true, true, true]); assert.deepEqual(actor.resourceUpdates, [2]);
 });
-check("non-character actors retain untouched synthetics", () => {
-  const actor = actorFixture(); actor.type = "npc"; enabled(actor, "skill:athletics"); installAdjustments(actor);
-  assert.equal(actor.synthetics.modifierAdjustments.athletics, undefined);
+test("two dialogs sharing the last point cannot both spend it on one client", async () => {
+  const actor = fixture(); actor.system.resources.mythicPoints.value = 1;
+  const sessions = [0, 1].map(() => { const { check, context } = input(actor); const session = new MythicCheckSession(actor, check, context); session.choose("mythic"); return session; });
+  const originalError = console.error; console.error = () => {};
+  try { assert.deepEqual(await Promise.all(sessions.map((session) => session.accept(true))), [true, false]); } finally { console.error = originalError; }
+  assert.equal(actor.getResource().value, 0); assert.deepEqual(actor.resourceUpdates, [0]);
 });
-{
-  const actor = actorFixture(); await setMythic(actor, "skill:athletics", true);
+test("cancelled or failed dice evaluation refunds once", async () => {
+  const actor = fixture(); const { check, context } = input(actor); const session = new MythicCheckSession(actor, check, context);
+  session.choose("mythic"); await session.accept(true); await session.finish(false); await session.finish(false);
+  assert.deepEqual(actor.resourceUpdates, [2, 3]); assert.equal(context.options.has(MYTHIC_OPTION), false);
+});
+test("each new check defaults to original proficiency after a Mythic roll", async () => {
+  const actor = fixture(); enable(actor, "skill:athletics"); const originalRank = actor.system.skills.athletics.rank;
+  let source = input(actor); let session = prepareSession(source.check, source.context); session.choose("mythic"); await session.accept(true); await session.finish(true);
+  source = input(actor); session = prepareSession(source.check, source.context); assert.equal(session.mode, "normal"); assert.equal(session.check.totalModifier, 12);
+  assert.equal(actor.system.skills.athletics.rank, originalRank); assert.equal(isMythic(actor, "skill:athletics"), true);
+});
+test("confirmed rolls expose one proficiency so native Rewrite Fate cannot add it twice", async () => {
+  for (const mode of ["normal", "mythic"]) {
+    const actor = fixture(); const { check, context } = input(actor, 1); const session = new MythicCheckSession(actor, check, context);
+    session.choose(mode); await session.accept(true);
+    const proficiencies = session.check.modifiers.filter((m) => m.type === "proficiency");
+    assert.equal(proficiencies.length, 1); assert.equal(proficiencies[0].slug, "proficiency");
+    assert.equal(session.check.totalModifier - proficiencies[0].modifier + mythicBonus(actor), 20);
+  }
+});
+test("native rerolls, flat checks, NPCs, and non-owners bypass the integration", () => {
+  const actor = fixture(); enable(actor, "skill:athletics"); const { check, context } = input(actor);
+  assert.equal(prepareSession(check, { ...context, isReroll: true }), null);
+  assert.equal(prepareSession(check, { ...context, type: "flat-check" }), null);
+  actor.type = "npc"; assert.equal(prepareSession(check, context), null); actor.type = "character"; actor.isOwner = false; assert.equal(prepareSession(check, context), null);
+});
+test("already-Mythic system modifiers do not create a second point charge", () => {
+  const actor = fixture(); enable(actor, "skill:athletics"); const { context } = input(actor);
+  const check = new CheckModifier("native-mythic", { modifiers: [new Modifier({ slug: "proficiency", label: "Native Mythic", type: "proficiency", modifier: 20 })] });
+  assert.equal(prepareSession(check, context), null);
+});
+test("weapon categories, groups, equivalent bases and Predicate definitions stay isolated", () => {
+  const actor = fixture(); for (const key of ["attacks:martial", "attacks:weapon-group-sword", "attacks:weapon-base-composite-longbow", "attacks:custom"]) enable(actor, key);
+  for (const option of ["item:category:martial", "item:group:sword", "item:base:longbow", "item:trait:agile"]) { const { check, context } = input(actor, 2, ["strike-attack-roll"], "attack-roll"); context.options.add(option); assert.ok(prepareSession(check, context)); }
+  const { check, context } = input(actor, 2, ["strike-attack-roll"], "attack-roll"); context.options.add("item:category:simple"); assert.equal(prepareSession(check, context), null);
+});
+test("Perception, saves, Lore, class-derived and spellcasting checks use their own eligibility", () => {
+  const actor = fixture(); actor.items.set("lore1", { id: "lore1", type: "lore", slug: "naval-lore" }); actor.itemTypes.lore.push(actor.items.get("lore1"));
+  for (const [key, domain] of [["perception", "perception"], ["save:will", "will"], ["lore:lore1", "naval-lore"], ["class:fighter", "fighter"], ["spellcasting", "spell-attack-dc"]]) { enable(actor, key); const { check, context } = input(actor, 1, [domain]); assert.ok(eligibleKeys(actor, check, context).includes(key)); }
+  const { check, context } = input(actor, 1, ["reflex"]); assert.equal(prepareSession(check, context), null);
+});
+test("Proficiency Without Level uses +10 while retaining the normal bonus", () => {
+  game.pf2e.settings.variants.pwol.enabled = true;
+  try { const actor = fixture(); const { check, context } = input(actor, 4); const session = new MythicCheckSession(actor, check, context); assert.equal(session.check.totalModifier, 8); session.choose("mythic"); assert.equal(session.check.totalModifier, 10); session.choose("normal"); assert.equal(session.check.totalModifier, 8); }
+  finally { game.pf2e.settings.variants.pwol.enabled = false; }
+});
+test("Mythic replaces an untrained PWOL penalty instead of adding it to +10", () => {
+  const pwol = game.pf2e.settings.variants.pwol; const before = { ...pwol };
+  pwol.enabled = true; pwol.modifiers = [-2, 2, 4, 6, 8];
+  try { const actor = fixture(); const { check, context } = input(actor, 0); const session = new MythicCheckSession(actor, check, context); assert.equal(session.check.totalModifier, -2); session.choose("mythic"); assert.equal(session.check.totalModifier, 10); session.choose("normal"); assert.equal(session.check.totalModifier, -2); }
+  finally { Object.assign(pwol, before); }
+});
+test("resource writes target the live Actor rather than its contextual clone", async () => {
+  const live = fixture(); const actor = fixture(); actor.uuid = live.uuid; const { check, context } = input(actor);
+  globalThis.fromUuidSync = () => live;
+  try { const session = new MythicCheckSession(actor, check, context); session.choose("mythic"); await session.accept(true); assert.deepEqual(live.resourceUpdates, [2]); assert.deepEqual(actor.resourceUpdates, []); }
+  finally { delete globalThis.fromUuidSync; }
+});
+test("the API stores availability only and preserves safe Unicode flag keys", async () => {
+  const actor = fixture(); await setMythic(actor, "skill:athletics", true);
   assert.deepEqual(actor.lastUpdate, { [`flags.${ID}.ranks.${flagKey("skill:athletics")}`]: true });
-  assert.ok(!Object.keys(actor.lastUpdate).some((key) => key.startsWith("system.")));
-  actor.isOwner = false; await assert.rejects(setMythic(actor, "skill:athletics", true), /Permission/);
-  actor.isOwner = true; await assert.rejects(setMythic(actor, "skill:missing", true), /InvalidTarget/);
-  count++; console.log("PASS API enforces ownership, validates target, and never writes rank 5");
-}
-for (const language of ["cn", "en"]) {
-  const dict = JSON.parse(await readFile(new URL(`../lang/${language}.json`, import.meta.url)));
-  assert.equal(Object.keys(dict.PF2E_MYTHIC).length, 8);
-}
-const manifest = JSON.parse(await readFile(new URL("../module.json", import.meta.url)));
-assert.deepEqual(manifest.compatibility, { minimum: "14", verified: "14.369", maximum: "14" });
-assert.ok(manifest.languages.some((l) => l.lang === "cn" && l.path === "lang/cn.json"));
-count++; console.log("PASS manifest and cn/en localization contract");
-console.log(`${count} mechanics and packaging tests passed against official PF2e Modifier/StatisticModifier source.`);
+  assert.ok(/^[0-9a-f]+$/.test(flagKey("skill:自定义.学识"))); actor.isOwner = false; await assert.rejects(setMythic(actor, "skill:athletics", true), /Permission/);
+});
+test("manifest and localization provide cn and matching translation keys", async () => {
+  const en = JSON.parse(await readFile(new URL("../lang/en.json", import.meta.url), "utf8"));
+  assert.deepEqual(Object.keys(cn.PF2E_MYTHIC).sort(), Object.keys(en.PF2E_MYTHIC).sort());
+  const manifest = JSON.parse(await readFile(new URL("../module.json", import.meta.url), "utf8")); assert.ok(manifest.languages.some((l) => l.lang === "cn"));
+});
+
+for (const [name, fn] of tests) { await fn(); console.log(`PASS ${name}`); }
+console.log(`${tests.length} per-check proficiency and resource tests passed against official PF2e modifier classes.`);

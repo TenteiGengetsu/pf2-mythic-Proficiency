@@ -72,6 +72,9 @@ jobs:
             dist/pf2e-mythic-proficiency.zip
             dist/SHA256SUMS.txt
             .test-results/ui-cn.png
+            .test-results/roll-mythic.png
+            .test-results/layout-*.png
+            .test-results/layout-report.json
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14

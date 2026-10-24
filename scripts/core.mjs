@@ -60,46 +60,6 @@ export function defenseMatches(actor, slug) {
   return actor.system.proficiencies?.defenses?.[slug]?.definition?.test?.(new Set(armor.getRollOptions("item"))) ?? false;
 }
 
-/**
- * PF2e 8.6.1 internal integration: its native ModifierAdjustment contract.
- * Runs before prepareEmbeddedDocuments builds base spellcasting. Values stay
- * proficiency modifiers; PF2e still owns stacking, roll dialogs, AC and DCs.
- */
-export function installAdjustments(actor) {
-  if (actor.type !== "character" || !actor.synthetics?.modifierAdjustments) return;
-  const record = actor.synthetics.modifierAdjustments;
-  // Preparation can be repeated on synthetic/token actors. Never accumulate.
-  for (const [selector, entries] of Object.entries(record)) {
-    record[selector] = entries.filter((entry) => entry.mythicModule !== ID);
-  }
-  const add = (selector, test = () => true) => {
-    (record[selector] ??= []).push({
-      mythicModule: ID,
-      slug: "proficiency",
-      relabel: LABEL,
-      test,
-      getNewValue: () => mythicBonus(actor)
-    });
-  };
-  // Skills and class data may be contributed by Items during embedded preparation.
-  // Decode saved semantic keys instead of relying on already-prepared system data.
-  for (const [encoded, enabled] of Object.entries(actor.flags?.[ID]?.ranks ?? {})) {
-    if (enabled !== true || !/^(?:[0-9a-f]{2})+$/.test(encoded)) continue;
-    const key = new TextDecoder().decode(Uint8Array.from(encoded.match(/../g), (hex) => parseInt(hex, 16)));
-    if (key === "perception") add("perception");
-    else if (key === "spellcasting") add("spell-attack-dc");
-    else if (/^(?:save|skill|class):/.test(key)) add(key.slice(key.indexOf(":") + 1));
-    else if (key.startsWith("lore:")) {
-      const item = actor.items.get(key.slice(5));
-      if (item?.type === "lore") add(item.slug);
-    } else if (key.startsWith("attacks:")) {
-      add("strike-attack-roll", (options) => attackMatches(actor, key.slice(8), options));
-    } else if (key.startsWith("defenses:")) {
-      add("ac", () => defenseMatches(actor, key.slice(9)));
-    }
-  }
-}
-
 export async function setMythic(actor, key, enabled) {
   if (actor.type !== "character" || !actor.isOwner) throw new Error("PF2E_MYTHIC.Permission");
   if (!targets(actor).some((target) => target.key === key)) throw new Error("PF2E_MYTHIC.InvalidTarget");

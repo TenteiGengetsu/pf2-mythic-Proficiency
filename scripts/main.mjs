@@ -1,4 +1,5 @@
-import { ID, MYTHIC, LABEL, flagKey, isMythic, mythicBonus, targets, installAdjustments, setMythic } from "./core.mjs";
+import { ID, MYTHIC, flagKey, isMythic, mythicBonus, targets, setMythic } from "./core.mjs";
+import { installRollIntegration } from "./rolls.mjs";
 
 const localize = (key, data) => game.i18n.localize(`PF2E_MYTHIC.${key}`, data);
 const boundRoots = new WeakSet();
@@ -6,18 +7,7 @@ let installed = false;
 
 function installIntegration() {
   if (installed || game.system.id !== "pf2e") return;
-  const proto = CONFIG.PF2E?.Actor?.documentClasses?.character?.prototype;
-  if (!proto || typeof proto.prepareEmbeddedDocuments !== "function") {
-    throw new Error("PF2E_MYTHIC.Unsupported");
-  }
-  // A narrow chained wrapper, preserving receiver, arguments and return value.
-  // This method is internal to PF2e, pinned to 8.6.1 in the manifest.
-  const original = proto.prepareEmbeddedDocuments;
-  proto.prepareEmbeddedDocuments = function (...args) {
-    installAdjustments(this);
-    return original.apply(this, args);
-  };
-  installed = true;
+  installed = installRollIntegration();
 }
 
 function asElement(html) {
@@ -84,7 +74,9 @@ function paint(select, actor, target) {
   const rank = Number(select.value);
   select.dataset.rank = String(active ? MYTHIC : rank);
   select.classList.toggle("mythic-active", active);
-  select.title = active ? localize("Hint", { bonus: mythicBonus(actor) }) : localize("SelectHint");
+  select.removeAttribute("title");
+  select.removeAttribute("data-tooltip");
+  select.removeAttribute("data-tooltip-content");
   select.setAttribute("aria-label", localize("SelectHint"));
 }
 
@@ -138,18 +130,7 @@ function addControls(app, html) {
     if (select.value === "system") select.dataset.rank = String(rank);
     badge.replaceWith(select);
   }
-  // CharacterSheetPF2e.getData recomputes these display-only values with domains: [].
-  // The underlying Strike/AC uses the real synthetic; keep the list in agreement.
-  for (const select of root.querySelectorAll("select[data-mythic-key]")) {
-    if (!isMythic(actor, select.dataset.mythicKey)) continue;
-    if (/^(attacks|defenses):/.test(select.dataset.mythicKey)) {
-      const value = select.closest("li")?.querySelector(".modifier");
-      if (value) {
-        value.textContent = `+${mythicBonus(actor)}`;
-        value.dataset.tooltip = localize("Hint", { bonus: mythicBonus(actor) });
-      }
-    }
-  }
+  // Gold marks availability. Sheet statistics and passive DCs stay native.
   // Do this on every render, including applications which reuse their root.
   // Never submit the virtual rank through a native system data field.
   for (const select of root.querySelectorAll("select[data-mythic-key]")) {

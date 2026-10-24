@@ -7,6 +7,11 @@
     "Permission": "You do not have permission to change this character's mythic proficiency.",
     "InvalidTarget": "Proficiency target not found. Reopen the character sheet.",
     "UpdateError": "Could not save mythic proficiency. Check the console and reopen the character sheet.",
-    "Unsupported": "Mythic Proficiency could not connect to PF2e. This module targets Foundry VTT 14 and PF2e 8.6.1."
+    "Unsupported": "Mythic Proficiency could not connect to PF2e. This module targets Foundry VTT 14 and PF2e 8.6.1.",
+    "OriginalCheck": "Original proficiency: {rank}",
+    "MythicCheck": "Mythic (1 Mythic Point)",
+    "Points": "Mythic Points: {value} · This check only",
+    "NoPoints": "No Mythic Points available",
+    "PointError": "Could not spend a Mythic Point. The check was cancelled."
   }
 }

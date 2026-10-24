@@ -19,3 +19,6 @@ select.pf-rank.mythic-control:focus-visible {
   outline-offset: 2px;
 }
 select.pf-rank.mythic-control:disabled { cursor: default; }
+.roll-modifiers-dialog .mythic-roll-choice .mod { color: #a57b0a; font-weight: 700; }
+.roll-modifiers-dialog .mythic-point-status { margin: 0.4rem 0; font-size: 0.85em; }
+.roll-modifiers-dialog .mythic-radio-control { display: inline-flex; align-items: center; justify-content: center; }

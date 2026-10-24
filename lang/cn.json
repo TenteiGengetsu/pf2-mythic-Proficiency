@@ -7,6 +7,11 @@
     "Permission": "你没有修改此角色神话熟练度的权限。",
     "InvalidTarget": "未找到可修改的熟练度项目，请重新打开角色卡。",
     "UpdateError": "保存神话熟练度失败，请查看控制台并重新打开角色卡。",
-    "Unsupported": "神话熟练度无法连接 PF2e 熟练度接口。本模组适配 Foundry VTT 14 与 PF2e 8.6.1。"
+    "Unsupported": "神话熟练度无法连接 PF2e 熟练度接口。本模组适配 Foundry VTT 14 与 PF2e 8.6.1。",
+    "OriginalCheck": "原熟练度：{rank}",
+    "MythicCheck": "神话（1神话点）",
+    "Points": "神话点：{value} · 仅本次检定",
+    "NoPoints": "神话点不足",
+    "PointError": "神话点扣除失败，本次检定已取消。"
   }
 }

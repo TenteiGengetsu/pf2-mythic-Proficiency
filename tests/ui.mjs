@@ -3,7 +3,7 @@ import { readFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE_URL ?? "playwright");
 const base = new URL("../", import.meta.url);
-const files = Object.fromEntries(await Promise.all(["scripts/main.mjs", "scripts/core.mjs", "styles/mythic.css", "lang/cn.json", "lang/en.json"].map(async (name) => [name, await readFile(new URL(name, base), "utf8")])));
+const files = Object.fromEntries(await Promise.all(["scripts/main.mjs", "scripts/core.mjs", "scripts/rolls.mjs", "styles/mythic.css", "lang/cn.json", "lang/en.json"].map(async (name) => [name, await readFile(new URL(name, base), "utf8")])));
 await mkdir(new URL("../.test-results/", import.meta.url), { recursive: true });
 const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) });
 try {
@@ -50,7 +50,7 @@ try {
     window.game = { version: "14.369", system: { id: "pf2e", version: "8.6.1" },
       modules: new Map([["pf2e-mythic-proficiency", {}]]), user: { isGM: true },
       i18n: { localize: loc, has: (key) => loc(key) !== key },
-      pf2e: { settings: { variants: { pwol: { enabled: false } } } } };
+      pf2e: { Check: { async roll() { return null; } }, CheckModifier: class {}, Modifier: class {}, settings: { variants: { pwol: { enabled: false } } } } };
     window.notifications = []; window.ui = { notifications: { error: (s) => notifications.push(s) } };
     class CharacterFixture { prepareEmbeddedDocuments() { this.originalCalls = (this.originalCalls ?? 0) + 1; this.sawEarlySpellAdjustment = this.synthetics.modifierAdjustments["spell-attack-dc"]?.length ?? 0; return "original-result"; } }
     window.CONFIG = { PF2E: { Actor: { documentClasses: { character: CharacterFixture } } } };
@@ -159,7 +159,7 @@ try {
   await control("attacks:martial").selectOption("5");
   await page.waitForFunction(() => document.querySelector('select[data-mythic-key="attacks:martial"]').value === "5");
   assert.equal(await control("attacks:martial").locator("option").count(), 2);
-  assert.equal(await control("attacks:martial").evaluate((el) => el.closest("li").querySelector(".modifier").textContent), "+20");
+  assert.equal(await control("attacks:martial").evaluate((el) => el.closest("li").querySelector(".modifier").textContent), "+14");
   await control("attacks:martial").selectOption("system");
   await page.waitForFunction(() => document.querySelector('select[data-mythic-key="attacks:martial"]').value === "system");
   assert.equal(await page.evaluate(() => actor.system.proficiencies.attacks.martial.rank), 2);
@@ -172,8 +172,8 @@ try {
   await control("spellcasting").selectOption("5");
   await page.waitForFunction(() => document.querySelector('select[data-mythic-key="spellcasting"]').value === "5");
   const wrapper = await page.evaluate(() => { const result = actor.prepareEmbeddedDocuments(); return { result, calls: actor.originalCalls, early: actor.sawEarlySpellAdjustment }; });
-  assert.deepEqual(wrapper, { result: "original-result", calls: 1, early: 1 });
-  pass("integration chains original method and injects before base spellcasting is built");
+  assert.deepEqual(wrapper, { result: "original-result", calls: 1, early: 0 });
+  pass("Mythic availability does not inject persistent proficiency or alter native preparation");
   await control("defenses:heavy").selectOption("5");
   await page.waitForFunction(() => document.querySelector('select[data-mythic-key="defenses:heavy"]').value === "5");
   await control("perception").selectOption("5");
@@ -185,8 +185,9 @@ try {
   await page.evaluate(() => { language = "en"; renderFixture(); });
   assert.equal(await control("save:will").locator("option[value='system']").textContent(), "Trained");
   assert.equal(await control("perception").locator("option[value='5']").textContent(), "Mythic");
-  assert.ok(!(await control("perception").getAttribute("title")).includes("PF2E_MYTHIC"));
-  pass("English Mythic and translated tooltips resolve correctly");
+  assert.equal(await page.locator("select.mythic-control[title], select.mythic-control[data-tooltip], select.mythic-control[data-tooltip-content]").count(), 0);
+  assert.ok((await control("perception").getAttribute("aria-label")).length > 0);
+  pass("English Mythic resolves; hover tips are absent and accessibility labels remain");
   await page.evaluate(() => { actor.isOwner = false; app.isEditable = false; renderFixture(); });
   assert.equal(await control("skill:athletics").isDisabled(), true);
   assert.equal(await page.locator(".perception .pf-rank").textContent(), "Mythic");

@@ -18,6 +18,22 @@ try {
   });
   await page.goto("https://fvtt.test/");
   await page.addStyleTag({ content: `body{font:16px system-ui;background:#171c27;color:#ded9d1;padding:35px}.sheet{background:#efe7da;color:#2e241e;padding:24px;width:650px}h1{font-size:24px}h2{font-size:17px;margin-top:25px}li,.roll-data{display:flex;gap:20px;margin:10px 0;align-items:center}li .name{min-width:180px}.pf-rank{display:block;width:4.25rem;height:1.125rem;box-sizing:border-box;font-size:12px;text-align:center;padding:1px;border:1px solid #211;color:white;background:#777}.pf-rank[data-rank="1"],option[value="1"]{background:#171d65}.pf-rank[data-rank="2"],option[value="2"]{background:#3b005b}.pf-rank[data-rank="3"],option[value="3"]{background:#805700}.pf-rank[data-rank="4"],option[value="4"]{background:#7c0900}small{color:#6d6256}.readonly{pointer-events:none}${files["styles/mythic.css"]}` });
+  await page.addStyleTag({ content: `
+    .actor.sheet.character section.window-content .crb-style aside select {
+      font-size:15px;max-width:100%;padding:2px 6px;width:100%;
+    }
+    .actor.sheet.character section.window-content .crb-style .pf-rank {
+      width:4.25rem;height:1.125rem;box-sizing:border-box;font-size:12px;padding:1px;
+    }
+    .actor.sheet.character section.window-content .crb-style aside .sidebar .perception select {
+      flex:0 0 8.25rem;margin-left:auto;
+    }
+    .actor.sheet.character section.window-content .crb-style aside .sidebar .perception .pf-rank {margin-left:auto}
+    .test-sidebar{width:220px;background:#65120d;color:#e5c995;padding:8px;box-sizing:border-box}
+    .test-sidebar .roll-data{gap:4px;justify-content:flex-start;align-items:center;margin:0}
+    .test-sidebar .roll-icon{width:20px;flex:0 0 20px}
+    .test-sidebar .modifier{margin-right:1rem;font-size:18px;line-height:1}
+  ` });
   await page.evaluate(({ cn, en }) => {
     window.dicts = { cn: JSON.parse(cn), en: JSON.parse(en) }; window.language = "cn";
     const handlers = new Map();
@@ -72,6 +88,22 @@ try {
       <li data-slug='spellcasting'><span class='modifier'>+12</span><span class='name'>基础施法 Spellcasting</span><span class='pf-rank' data-rank='1'>${loc("PF2E.ProficiencyLevel1")}</span></li>
       <li class='item spellcasting-entry' data-item-id='spells1'><span class='name'>法术条目 Entry</span><div class='spellcasting-prof'><span class='pf-rank' data-rank='1'>${loc("PF2E.ProficiencyLevel1")}</span></div></li>
       <li class='item spellcasting-entry' data-item-id='spells2'><span class='name'>职业绑定法术 Class-linked</span><div class='spellcasting-prof'><span class='pf-rank' data-rank='2'>${loc("PF2E.ProficiencyLevel2")}</span></div></li></ul>`;
+      // Match the real sidebar structure and its select-specific layout rules.
+      const perception = root.querySelector(".perception");
+      const nativeBadge = perception.querySelector(".pf-rank");
+      const row = perception.querySelector(".roll-data");
+      row.replaceChildren();
+      row.innerHTML = "<a class='roll-icon'>D</a><a class='roll-icon'>S</a><a class='modifier'>+14</a>";
+      row.append(nativeBadge);
+      const aside = document.createElement("aside"); aside.className = "test-sidebar";
+      const sidebar = document.createElement("div"); sidebar.className = "sidebar";
+      perception.before(aside); aside.append(sidebar); sidebar.append(perception);
+      const windowContent = document.createElement("section"); windowContent.className = "window-content";
+      const crb = document.createElement("div"); crb.className = "crb-style";
+      crb.append(...root.childNodes); windowContent.append(crb); root.append(windowContent);
+      const rect = nativeBadge.getBoundingClientRect();
+      const css = getComputedStyle(nativeBadge);
+      window.perceptionBaseline = { x: rect.x, y: rect.y, width: rect.width, height: rect.height, fontSize: css.fontSize, padding: css.padding };
       for (const select of root.querySelectorAll("select")) select.addEventListener("change", () => nativeChanges.push(select.value));
       Hooks.dispatch("renderActorSheet", app, root);
       return root;
@@ -89,6 +121,14 @@ try {
     assert.equal(await control(key).evaluate((el) => getComputedStyle(el).width), "68px");
   }
   pass("automatic badges keep native rank text and compact sheet width without a system suffix");
+  const perceptionGeometry = await control("perception").evaluate((el) => {
+    const rect = el.getBoundingClientRect(); const css = getComputedStyle(el);
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, fontSize: css.fontSize, padding: css.padding };
+  });
+  const baseline = await page.evaluate(() => perceptionBaseline);
+  for (const key of ["width", "height", "fontSize", "padding"]) assert.equal(perceptionGeometry[key], baseline[key]);
+  for (const key of ["x", "y"]) assert.ok(Math.abs(perceptionGeometry[key] - baseline[key]) <= 0.5, `${key} moved by more than half a CSS pixel`);
+  pass("Perception keeps the original badge bounds and typography despite the sidebar's 8.25rem select rule");
   assert.equal(await page.locator(".pf2e").count(), 0);
   assert.equal(await control("skill:athletics").locator("option[value='5']").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(212, 175, 55)");
   assert.equal(await control("skill:athletics").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(23, 29, 101)");

@@ -55,6 +55,30 @@ function targetForBadge(actor, badge, list) {
   return null;
 }
 
+function preserveBadgeLayout(badge, select) {
+  const css = getComputedStyle(badge);
+  const width = parseFloat(css.width) > 0 ? css.width : "4.25rem";
+  const height = parseFloat(css.height) > 0 ? css.height : "1.125rem";
+  select.dataset.mythicBadge = "true";
+  // The sidebar gives SELECTs initiative-style flex and input spacing.
+  // Keep the original SPAN badge's measured box instead of inheriting those.
+  for (const [property, value] of Object.entries({
+    width, "min-width": width, "max-width": width,
+    height, "min-height": height, "max-height": height,
+    flex: `0 0 ${width}`
+  })) select.style.setProperty(property, value, "important");
+  for (const property of [
+    "box-sizing", "font-family", "font-size", "line-height", "letter-spacing", "text-align",
+    "padding-top", "padding-right", "padding-bottom", "padding-left",
+    "margin-top", "margin-right", "margin-bottom", "margin-left",
+    "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
+    "border-style", "border-radius", "align-self"
+  ]) {
+    const value = css.getPropertyValue(property);
+    if (value) select.style.setProperty(property, value, "important");
+  }
+}
+
 function paint(select, actor, target) {
   const active = isMythic(actor, target.key);
   const rank = Number(select.value);
@@ -104,6 +128,7 @@ function addControls(app, html) {
     const rank = Number(badge.dataset.rank ?? 0);
     const select = document.createElement("select");
     select.className = "pf-rank mythic-control";
+    preserveBadgeLayout(badge, select);
     select.dataset.mythicKey = target.key;
     select.dataset.mythicSystemRank = String(rank);
     select.add(new Option(localize("SystemRank", { rank: game.i18n.localize(`PF2E.ProficiencyLevel${rank}`) }), "system"));

@@ -164,6 +164,23 @@ check("preparation is idempotent and flag removal restores native value", () => 
   enabled(actor, "skill:athletics", false); installAdjustments(actor);
   assert.equal(proficiency(actor, 1, ["athletics"]).total, 12);
 });
+check("disabling the module preserves every original rank, including later system progression", () => {
+  for (const rank of [0, 1, 2, 3, 4]) {
+    const actor = actorFixture(); actor.system.skills.athletics.rank = rank;
+    enabled(actor, "skill:athletics"); installAdjustments(actor);
+    assert.equal(proficiency(actor, rank, ["athletics"]).total, 20);
+    assert.equal(actor.system.skills.athletics.rank, rank);
+    // A world reload with the module disabled rebuilds core synthetics and
+    // leaves the saved flag inert. No module adjustment is installed.
+    const reloaded = actorFixture(); reloaded.flags = clone(actor.flags);
+    reloaded.system.skills.athletics.rank = actor.system.skills.athletics.rank;
+    assert.equal(isMythic(reloaded, "skill:athletics"), true);
+    assert.equal(proficiency(reloaded, rank, ["athletics"]).total, rank === 0 ? 0 : 10 + rank * 2);
+    const progressed = Math.min(4, rank + 1);
+    reloaded.system.skills.athletics.rank = progressed;
+    assert.equal(proficiency(reloaded, progressed, ["athletics"]).total, 10 + progressed * 2);
+  }
+});
 check("Proficiency Without Level uses fixed +10 including customized base ranks", () => {
   game.pf2e.settings.variants.pwol = { enabled: true, modifiers: [-2, 3, 5, 7, 9] };
   const actor = actorFixture(); enabled(actor, "skill:athletics"); installAdjustments(actor);

@@ -60,6 +60,8 @@ jobs:
         run: npm test
       - name: Build and inspect the Foundry package
         run: npm run build
+      - name: Test release creation and draft recovery
+        run: python tests/publish_test.py
       - name: Retain package and test screenshot
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

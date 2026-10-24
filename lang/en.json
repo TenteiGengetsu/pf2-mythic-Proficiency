@@ -1,0 +1,12 @@
+{
+  "PF2E_MYTHIC": {
+    "Rank": "Mythic",
+    "Hint": "Mythic proficiency: +{bonus}. Normally level +10; +10 with Proficiency Without Level.",
+    "SelectHint": "Select proficiency. Mythic changes the proficiency bonus only.",
+    "SystemRank": "{rank} (system)",
+    "Permission": "You do not have permission to change this character's mythic proficiency.",
+    "InvalidTarget": "Proficiency target not found. Reopen the character sheet.",
+    "UpdateError": "Could not save mythic proficiency. Check the console and reopen the character sheet.",
+    "Unsupported": "Mythic Proficiency could not connect to PF2e. This module targets Foundry VTT 14 and PF2e 8.6.1."
+  }
+}

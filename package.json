@@ -1,0 +1,19 @@
+{
+  "name": "pf2e-mythic-proficiency",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "check": "node tools/check.mjs",
+    "test:mechanics": "node tests/mechanics.mjs",
+    "test:ui": "node tests/ui.mjs",
+    "test": "npm run check && npm run test:mechanics && npm run test:ui",
+    "build": "python tools/package.py"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

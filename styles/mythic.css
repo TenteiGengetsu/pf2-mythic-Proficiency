@@ -1,0 +1,21 @@
+:root { --color-proficiency-mythic: #d4af37; }
+.pf2e .pf-rank[data-rank="5"],
+.pf2e .pf-rank.mythic-active,
+.pf2e .pf-rank option[value="5"] {
+  background: var(--color-proficiency-mythic) !important;
+  color: #211701 !important;
+  border-color: #8c6914;
+  font-weight: 700;
+  text-shadow: 0 1px 0 #fff5b866;
+}
+.pf2e select.mythic-control {
+  min-width: 4.25rem;
+  width: auto;
+  max-width: 8rem;
+  cursor: pointer;
+}
+.pf2e select.mythic-control:focus-visible {
+  outline: 2px solid #d4af37;
+  outline-offset: 2px;
+}
+.pf2e select.mythic-control:disabled { cursor: default; }

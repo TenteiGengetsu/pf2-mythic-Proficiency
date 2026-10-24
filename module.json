@@ -1,0 +1,64 @@
+{
+  "id": "pf2e-mythic-proficiency",
+  "title": "PF2e Mythic Proficiency | ��������",
+  "description": "Adds a gold Mythic proficiency choice to PF2e character sheets. Ϊ PF2e ��ɫ�����ӽ�ɫ��������ѡ�������ֵΪ�ȼ� +10��",
+  "version": "1.0.0",
+  "authors": [
+    {
+      "name": "TenteiGengetsu",
+      "url": "https://github.com/TenteiGengetsu"
+    }
+  ],
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14.369",
+    "maximum": "14"
+  },
+  "relationships": {
+    "systems": [
+      {
+        "id": "pf2e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "8.6.1",
+          "verified": "8.6.1",
+          "maximum": "8.6.1"
+        }
+      }
+    ]
+  },
+  "esmodules": [
+    "scripts/main.mjs"
+  ],
+  "styles": [
+    "styles/mythic.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    },
+    {
+      "lang": "cn",
+      "name": "��������",
+      "path": "lang/cn.json"
+    },
+    {
+      "lang": "zh-CN",
+      "name": "��������",
+      "path": "lang/cn.json"
+    },
+    {
+      "lang": "zh",
+      "name": "����",
+      "path": "lang/cn.json"
+    }
+  ],
+  "license": "LICENSE",
+  "url": "https://github.com/TenteiGengetsu/pf2-mythic-Proficiency",
+  "manifest": "https://github.com/TenteiGengetsu/pf2-mythic-Proficiency/releases/latest/download/module.json",
+  "download": "https://github.com/TenteiGengetsu/pf2-mythic-Proficiency/releases/latest/download/pf2e-mythic-proficiency.zip",
+  "bugs": "https://github.com/TenteiGengetsu/pf2-mythic-Proficiency/issues",
+  "changelog": "https://github.com/TenteiGengetsu/pf2-mythic-Proficiency/releases"
+}

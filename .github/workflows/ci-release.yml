@@ -1,0 +1,105 @@
+name: Validate, package and release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish module.json version after all checks pass'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mythic-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Syntax, localization, PF2e mechanics and browser UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout module
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Checkout the audited PF2e source revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: foundryvtt/pf2e
+          ref: 46f7c3cf48e776eef89e4fe843e72e3c9bc721a0
+          path: .cache/pf2e
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /src/module/actor/modifiers.ts
+            /src/module/system/predication.ts
+            /src/module/system/statistic/base.ts
+            /src/module/system/statistic/statistic.ts
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Install locked test dependencies
+        run: npm ci
+      - name: Install Chromium and its runtime dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Validate and test
+        run: npm test
+      - name: Build and inspect the Foundry package
+        run: npm run build
+      - name: Retain package and test screenshot
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mythic-proficiency-${{ github.sha }}
+          path: |
+            dist/module.json
+            dist/pf2e-mythic-proficiency.zip
+            dist/SHA256SUMS.txt
+            .test-results/ui-cn.png
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+
+  release:
+    name: Publish a new version
+    needs: validate
+    if: >-
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    concurrency:
+      group: mythic-proficiency-publish
+      cancel-in-progress: false
+    steps:
+      - name: Checkout the validated revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Rebuild the validated package
+        run: python tools/package.py
+      - name: Upload assets to a draft and publish when complete
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python tools/publish.py

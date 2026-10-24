@@ -3,7 +3,7 @@
     "Rank": "Mythic",
     "Hint": "Mythic proficiency: +{bonus}. Normally level +10; +10 with Proficiency Without Level.",
     "SelectHint": "Select proficiency. Mythic changes the proficiency bonus only.",
-    "SystemRank": "{rank} (system)",
+    "SystemRank": "{rank}",
     "Permission": "You do not have permission to change this character's mythic proficiency.",
     "InvalidTarget": "Proficiency target not found. Reopen the character sheet.",
     "UpdateError": "Could not save mythic proficiency. Check the console and reopen the character sheet.",

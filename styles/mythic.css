@@ -11,9 +11,7 @@ select.pf-rank.mythic-control option[value="5"] {
   text-shadow: 0 1px 0 #fff5b866;
 }
 select.pf-rank.mythic-control {
-  min-width: 4.25rem;
-  width: auto;
-  max-width: 8rem;
+  /* Inherit the sheet's native badge width, including compact sidebar saves. */
   cursor: pointer;
 }
 select.pf-rank.mythic-control:focus-visible {

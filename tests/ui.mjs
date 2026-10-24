@@ -17,7 +17,7 @@ try {
     return route.fulfill({ status: 404, body: "Not found" });
   });
   await page.goto("https://fvtt.test/");
-  await page.addStyleTag({ content: `body{font:16px system-ui;background:#171c27;color:#ded9d1;padding:35px}.sheet{background:#efe7da;color:#2e241e;padding:24px;width:650px}h1{font-size:24px}h2{font-size:17px;margin-top:25px}li,.roll-data{display:flex;gap:20px;margin:10px 0;align-items:center}li .name{min-width:180px}.pf-rank{display:block;min-width:90px;text-align:center;padding:4px;border:1px solid #211;color:white;background:#777}.pf-rank[data-rank="1"],option[value="1"]{background:#171d65}.pf-rank[data-rank="2"],option[value="2"]{background:#3b005b}.pf-rank[data-rank="3"],option[value="3"]{background:#805700}.pf-rank[data-rank="4"],option[value="4"]{background:#7c0900}small{color:#6d6256}.readonly{pointer-events:none}${files["styles/mythic.css"]}` });
+  await page.addStyleTag({ content: `body{font:16px system-ui;background:#171c27;color:#ded9d1;padding:35px}.sheet{background:#efe7da;color:#2e241e;padding:24px;width:650px}h1{font-size:24px}h2{font-size:17px;margin-top:25px}li,.roll-data{display:flex;gap:20px;margin:10px 0;align-items:center}li .name{min-width:180px}.pf-rank{display:block;width:4.25rem;height:1.125rem;box-sizing:border-box;font-size:12px;text-align:center;padding:4px;border:1px solid #211;color:white;background:#777}.pf-rank[data-rank="1"],option[value="1"]{background:#171d65}.pf-rank[data-rank="2"],option[value="2"]{background:#3b005b}.pf-rank[data-rank="3"],option[value="3"]{background:#805700}.pf-rank[data-rank="4"],option[value="4"]{background:#7c0900}small{color:#6d6256}.readonly{pointer-events:none}${files["styles/mythic.css"]}` });
   await page.evaluate(({ cn, en }) => {
     window.dicts = { cn: JSON.parse(cn), en: JSON.parse(en) }; window.language = "cn";
     const handlers = new Map();
@@ -84,6 +84,11 @@ try {
   assert.equal(await control("skill:athletics").locator("option[value='5']").textContent(), "神话");
   assert.equal(await page.locator("select[data-mythic-key]").count(), 11);
   pass("native dropdowns, automatic badges, lore and spell/class bindings get controls");
+  for (const [key, rank] of [["perception", "专家"], ["save:will", "受训"], ["attacks:martial", "专家"], ["defenses:heavy", "受训"], ["class:fighter", "专家"], ["spellcasting", "受训"]]) {
+    assert.equal(await control(key).locator("option[value='system']").textContent(), rank);
+    assert.equal(await control(key).evaluate((el) => getComputedStyle(el).width), "68px");
+  }
+  pass("automatic badges keep native rank text and compact sheet width without a system suffix");
   assert.equal(await page.locator(".pf2e").count(), 0);
   assert.equal(await control("skill:athletics").locator("option[value='5']").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(212, 175, 55)");
   assert.equal(await control("skill:athletics").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(23, 29, 101)");
@@ -138,6 +143,7 @@ try {
   pass("repeat renders preserve flags and do not duplicate options");
   await page.screenshot({ path: fileURLToPath(new URL("../.test-results/ui-cn.png", import.meta.url)), fullPage: true });
   await page.evaluate(() => { language = "en"; renderFixture(); });
+  assert.equal(await control("save:will").locator("option[value='system']").textContent(), "Trained");
   assert.equal(await control("perception").locator("option[value='5']").textContent(), "Mythic");
   assert.ok(!(await control("perception").getAttribute("title")).includes("PF2E_MYTHIC"));
   pass("English Mythic and translated tooltips resolve correctly");

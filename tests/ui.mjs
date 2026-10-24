@@ -27,7 +27,7 @@ try {
       dispatch: (hook, ...args) => { for (const fn of handlers.get(hook) ?? []) fn(...args); }
     };
     const loc = (key, data = {}) => {
-      const native = language === "cn" ? ["δ��ѵ", "��ѵ", "ר��", "��ʦ", "����"] : ["Untrained", "Trained", "Expert", "Master", "Legendary"];
+      const native = language === "cn" ? ["未受训", "受训", "专家", "大师", "传奇"] : ["Untrained", "Trained", "Expert", "Master", "Legendary"];
       let value = /^PF2E.ProficiencyLevel[0-4]$/.test(key) ? native[Number(key.at(-1))] : key.split(".").reduce((v, k) => v?.[k], dicts[language]) ?? key;
       return value.replace(/\{(\w+)\}/g, (_, name) => String(data[name] ?? `{${name}}`));
     };
@@ -61,17 +61,17 @@ try {
     window.nativeChanges = [];
     window.renderFixture = () => {
       const root = document.querySelector("#sheet");
-      root.innerHTML = `<h1>${language === "cn" ? "�������� �� ��ɫ��������֤" : "Mythic proficiency �� Sheet UI check"}</h1><small>Foundry 14.369 �� PF2e 8.6.1 �� DOM fixture</small>
-      <h2>���� / Skills</h2><ul><li><span class='name'>�˶� Athletics</span><select class='pf-rank' name='system.skills.athletics.rank' data-property='system.skills.athletics.rank' data-rank='${actor.system.skills.athletics.rank}'>${options(actor.system.skills.athletics.rank)}</select></li>
-      <li><span class='name'>���� Stealth</span><select class='pf-rank' data-property='system.skills.stealth.rank' data-rank='4'>${options(4)}</select></li>
-      <li class='item' data-item-id='lore1'><span class='name'>����ѧʶ Sailing Lore</span><select class='pf-rank adjust-item-stat-select' data-item-property='system.proficient.value' data-rank='${lore.system.proficient.value}'>${options(lore.system.proficient.value)}</select></li></ul>
-      <h2>��������� / Attacks & Defenses</h2><ul class='combat-list'><li data-slug='martial'><span class='modifier'>+14</span><span class='name'>�������� Martial weapons</span><select class='pf-rank readonly' data-property='system.proficiencies.attacks.martial.rank' data-rank='2'>${options(2)}</select></li></ul>
-      <ul class='combat-list'><li data-slug='heavy'><span class='modifier'>+12</span><span class='name'>�ؼ� Heavy armor</span><span class='pf-rank' data-rank='1'>${loc("PF2E.ProficiencyLevel1")}</span></li></ul>
-      <h2>�������� / Perception & Saves</h2><section class='perception'><div class='roll-data'><span class='name'>��� Perception</span><span class='pf-rank' data-rank='2'>${loc("PF2E.ProficiencyLevel2")}</span></div></section><ul><li data-save='will'><span class='name'>��־ Will</span><span class='pf-rank' data-rank='1'>${loc("PF2E.ProficiencyLevel1")}</span></li></ul>
-      <h2>ְҵ�뷨�� / Class & Spells</h2><ul><li><a class='dc' data-tooltip-content='#fixture-fighter-modifiers'>24</a><span class='name'>սʿְҵ DC</span><span class='pf-rank' data-rank='2'>${loc("PF2E.ProficiencyLevel2")}</span></li>
-      <li data-slug='spellcasting'><span class='modifier'>+12</span><span class='name'>����ʩ�� Spellcasting</span><span class='pf-rank' data-rank='1'>${loc("PF2E.ProficiencyLevel1")}</span></li>
-      <li class='item spellcasting-entry' data-item-id='spells1'><span class='name'>������Ŀ Entry</span><div class='spellcasting-prof'><span class='pf-rank' data-rank='1'>${loc("PF2E.ProficiencyLevel1")}</span></div></li>
-      <li class='item spellcasting-entry' data-item-id='spells2'><span class='name'>ְҵ�󶨷��� Class-linked</span><div class='spellcasting-prof'><span class='pf-rank' data-rank='2'>${loc("PF2E.ProficiencyLevel2")}</span></div></li></ul>`;
+      root.innerHTML = `<h1>${language === "cn" ? "神话熟练度 · 角色卡界面验证" : "Mythic proficiency · Sheet UI check"}</h1><small>Foundry 14.369 · PF2e 8.6.1 · DOM fixture</small>
+      <h2>技能 / Skills</h2><ul><li><span class='name'>运动 Athletics</span><select class='pf-rank' name='system.skills.athletics.rank' data-property='system.skills.athletics.rank' data-rank='${actor.system.skills.athletics.rank}'>${options(actor.system.skills.athletics.rank)}</select></li>
+      <li><span class='name'>隐匿 Stealth</span><select class='pf-rank' data-property='system.skills.stealth.rank' data-rank='4'>${options(4)}</select></li>
+      <li class='item' data-item-id='lore1'><span class='name'>航海学识 Sailing Lore</span><select class='pf-rank adjust-item-stat-select' data-item-property='system.proficient.value' data-rank='${lore.system.proficient.value}'>${options(lore.system.proficient.value)}</select></li></ul>
+      <h2>攻击与防御 / Attacks & Defenses</h2><ul class='combat-list'><li data-slug='martial'><span class='modifier'>+14</span><span class='name'>军用武器 Martial weapons</span><select class='pf-rank readonly' data-property='system.proficiencies.attacks.martial.rank' data-rank='2'>${options(2)}</select></li></ul>
+      <ul class='combat-list'><li data-slug='heavy'><span class='modifier'>+12</span><span class='name'>重甲 Heavy armor</span><span class='pf-rank' data-rank='1'>${loc("PF2E.ProficiencyLevel1")}</span></li></ul>
+      <h2>察觉与豁免 / Perception & Saves</h2><section class='perception'><div class='roll-data'><span class='name'>察觉 Perception</span><span class='pf-rank' data-rank='2'>${loc("PF2E.ProficiencyLevel2")}</span></div></section><ul><li data-save='will'><span class='name'>意志 Will</span><span class='pf-rank' data-rank='1'>${loc("PF2E.ProficiencyLevel1")}</span></li></ul>
+      <h2>职业与法术 / Class & Spells</h2><ul><li><a class='dc' data-tooltip-content='#fixture-fighter-modifiers'>24</a><span class='name'>战士职业 DC</span><span class='pf-rank' data-rank='2'>${loc("PF2E.ProficiencyLevel2")}</span></li>
+      <li data-slug='spellcasting'><span class='modifier'>+12</span><span class='name'>基础施法 Spellcasting</span><span class='pf-rank' data-rank='1'>${loc("PF2E.ProficiencyLevel1")}</span></li>
+      <li class='item spellcasting-entry' data-item-id='spells1'><span class='name'>法术条目 Entry</span><div class='spellcasting-prof'><span class='pf-rank' data-rank='1'>${loc("PF2E.ProficiencyLevel1")}</span></div></li>
+      <li class='item spellcasting-entry' data-item-id='spells2'><span class='name'>职业绑定法术 Class-linked</span><div class='spellcasting-prof'><span class='pf-rank' data-rank='2'>${loc("PF2E.ProficiencyLevel2")}</span></div></li></ul>`;
       for (const select of root.querySelectorAll("select")) select.addEventListener("change", () => nativeChanges.push(select.value));
       Hooks.dispatch("renderActorSheet", app, root);
       return root;
@@ -81,7 +81,7 @@ try {
   const control = (key) => page.locator(`select[data-mythic-key="${key}"]`).first();
   let count = 0;
   const pass = (s) => { count++; console.log(`PASS ${s}`); };
-  assert.equal(await control("skill:athletics").locator("option[value='5']").textContent(), "��");
+  assert.equal(await control("skill:athletics").locator("option[value='5']").textContent(), "神话");
   assert.equal(await page.locator("select[data-mythic-key]").count(), 11);
   pass("native dropdowns, automatic badges, lore and spell/class bindings get controls");
   await control("skill:athletics").selectOption("5");

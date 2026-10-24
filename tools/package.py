@@ -45,15 +45,15 @@ checksums = "".join(f"{hashlib.sha256(file.read_bytes()).hexdigest()}  {file.nam
 (output / "SHA256SUMS.txt").write_text(checksums, encoding="utf-8")
 notes = f"""PF2e Mythic Proficiency {tag}
 
-- ��ɫ�� / Mythic �����ȣ��������Դ��� cn��
-- ��׼������ֵΪ�ȼ� +10���޵ȼ�����Ϊ +10��
-- Foundry VTT 14���嵥 verified 14.369����PF2e 8.6.1��
-- �Զ�����ֵ������о߲���ͨ������Ϸ����������ʹ����ִ�С�
-- ��Ϊ�ֶ����أ����Զ������񻰵㡣
+- 金色神话 / Mythic 熟练度，中文语言代码 cn。
+- 标准熟练加值为等级 +10；无等级熟练为 +10。
+- Foundry VTT 14（清单 verified 14.369），PF2e 8.6.1。
+- 自动化数值及界面夹具测试通过；游戏内验收仍需使用者执行。
+- 神话为手动开关，不自动消耗神话点。
 
-Foundry ��װ�嵥��{url}/releases/latest/download/module.json
+Foundry 安装清单：{url}/releases/latest/download/module.json
 
-�ֶ���װ���� pf2e-mythic-proficiency.zip ��ѹ�� Data/modules/pf2e-mythic-proficiency/��
+手动安装：将 pf2e-mythic-proficiency.zip 解压到 Data/modules/pf2e-mythic-proficiency/。
 """
 (output / "RELEASE_NOTES.md").write_text(notes, encoding="utf-8")
 (output / "release-meta.json").write_text(json.dumps({"version": version, "tag": tag, "title": f"PF2e Mythic Proficiency {tag}", "repository": repository}, indent=2) + "\n", encoding="utf-8")

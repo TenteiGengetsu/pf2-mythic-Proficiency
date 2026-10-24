@@ -173,9 +173,9 @@ check("Proficiency Without Level uses fixed +10 including customized base ranks"
 });
 check("level-zero characters and safe Unicode flag keys", () => {
   const actor = actorFixture(); actor.level = 0; assert.equal(mythicBonus(actor), 10);
-  const key = "skill:�Զ���.ѧʶ"; enabled(actor, key); installAdjustments(actor);
+  const key = "skill:自定义.学识"; enabled(actor, key); installAdjustments(actor);
   assert.ok(/^[0-9a-f]+$/.test(flagKey(key)));
-  assert.equal(proficiency(actor, 1, ["�Զ���.ѧʶ"]).total, 10);
+  assert.equal(proficiency(actor, 1, ["自定义.学识"]).total, 10);
 });
 check("non-character actors retain untouched synthetics", () => {
   const actor = actorFixture(); actor.type = "npc"; enabled(actor, "skill:athletics"); installAdjustments(actor);
